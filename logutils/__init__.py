@@ -1,6 +1,10 @@
 import logging.handlers
+from functools import partial
+from logging import Formatter, Filter, Logger
 import logging
 import socket
+
+from yalib.console import colorize
 
 class NonBlockingDatagramHandler(logging.handlers.DatagramHandler):
     "Mostly the vanilla DatagramHandler with some extra safety/non-blockingess additions"
@@ -26,3 +30,21 @@ class NonBlockingDatagramHandler(logging.handlers.DatagramHandler):
             self.sock.close()
             # Note: so we can call createSocket next time
             self.sock = None
+
+class ColorFormatter(Formatter):
+    SEVERITY_COLOR_THRESHOLDS = (
+        (0, 'blue'),
+        (10, 'cyan'),
+        (20, 'green'),
+        (30, 'yellow'),
+        (40, 'red'),
+        (50, 'magenta'),
+    )
+    def format(self, record):
+        plain_result = Formatter.format(self, record)
+        for severity_threshold, severity_color in self.SEVERITY_COLOR_THRESHOLDS:
+            if record.levelno >= severity_threshold:
+                color = severity_color
+            else:
+                break
+        return colorize(plain_result, color=color)
