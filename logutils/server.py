@@ -3,6 +3,7 @@ from __future__ import print_function
 import cPickle
 import sys
 import logging
+import errno
 import logging.handlers
 import socket
 import SocketServer
@@ -59,27 +60,43 @@ class LogRecordDatagramServer(SocketServer.UDPServer):
                 logging.getLogger().warning("%s: %s" % (client_address[0], error))
         SocketServer.UDPServer.handle_error(self, request, client_address)
 
-def _main(datefmt='%Y%m%d-%H%M%S', fmt='%(levelname)-8s %(message)s',
-          server_address=('0.0.0.0', logging.handlers.DEFAULT_UDP_LOGGING_PORT)):
-    logging.getLogger().setLevel(1)
-    handler = logging.StreamHandler()
-    handler.setFormatter(ColorFormatter(datefmt=datefmt, fmt=fmt))
-    handler.setLevel(1)
-    logging.getLogger().addHandler(handler)
-    print("[logserver at %s; %s]" % ('%s:%s' % server_address, ColorFormatter._color))
-    try:
-        LogRecordDatagramServer(server_address).serve_forever()
-    except KeyboardInterrupt:
-        pass
-    except socket.error, error:
-        if error.errno != errno.EADDRINUSE:
-            raise
-        print('Already running (EADDRINUSE)')
+class Logserver:
+    "Run 'Logserver = yalib.mainutils.usage.executable(Logserver)' to register this executable"
+    @classmethod
+    def initialize_subparser(cls, parser):
+        parser.add_argument('-l', '--log-level', help='Default loglevel (0-50)', type=int)
+        parser.add_argument('--date-format', help='the format used to print the date')
+        parser.add_argument('--format', help='the format used to print log records')
+        parser.add_argument('--bind-address', help='the address to bind to')
+        parser.add_argument('--bind-port', help='the port to bind to', type=int)
+        parser.set_defaults(log_level=logging.DEBUG, datefmt='%Y%m%d-%H%M%S', fmt='%(levelname)-8s %(message)s',
+                            bind_port=logging.handlers.DEFAULT_UDP_LOGGING_PORT, bind_address='0.0.0.0')
+    @classmethod
+    def validate_arguments(cls, parser, options):
+        if not 0 <= options.log_level <= 50:
+            parser.error('log level should be between 0 and 50')
 
-def main(argv):
-    # TODO: add argument parsing?
-    _main()
+    def __init__(self, options):
+        self.options = options
+    def invoke(self):
+        server_address=(self.options.bind_address, self.options.bind_port)
+        logging.getLogger().setLevel(self.options.log_level)
+        handler = logging.StreamHandler()
+        handler.setFormatter(ColorFormatter(datefmt=self.options.date_format, fmt=self.options.format))
+        handler.setLevel(self.options.log_level)
+        logging.getLogger().addHandler(handler)
+        print("[logserver at %s; %s]" % ('%s:%s' % server_address, ColorFormatter._color))
+        try:
+            LogRecordDatagramServer(server_address).serve_forever()
+        except KeyboardInterrupt:
+            pass
+        except socket.error, error:
+            if error.errno != errno.EADDRINUSE:
+                raise
+            print('Already running (EADDRINUSE)')
 
-if __name__ == "__main__":
-    main(sys.argv)
-
+if __name__ == '__main__':
+    from yalib.mainutils.usage import executable
+    Logserver = executable(Logserver)
+    options = parse_arguments(sys.argv)
+    options.executable(options).invoke()
