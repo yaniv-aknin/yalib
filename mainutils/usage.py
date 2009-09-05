@@ -7,7 +7,7 @@ def executable(other):
     """executable classes must know how to register with an argparse parser, validate the parsed arguments,
         be constructed by __init__(self, options) and have an invoke() function"""
     other_class_cli_name = other.CLI_NAME if hasattr(other, 'CLI_NAME') else other.__name__.lower()
-    if other_class_cli_name in _registered_executables:
+    if other_class_cli_name in _registered_executables and _registered_executables[other_class_cli_name] is not other:
         raise AssertionError('double executable registration for %s' % (other_class_cli_name,))
     _registered_executables[other_class_cli_name] = other
     return other
